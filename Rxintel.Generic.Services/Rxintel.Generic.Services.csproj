@@ -1,0 +1,40 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.105.0" />
+    <PackageReference Include="FluentValidation" Version="11.11.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.6" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.6" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.2.1" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.2.1" />
+    <PackageReference Include="AutoMapper" Version="14.0.0" />
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.25.0" />
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.3.0" />
+    <PackageReference Include="NPOI" Version="2.7.4" />
+    <PackageReference Include="MailKit" Version="4.11.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rxintel.Generic.Common\Rxintel.Generic.Common.csproj" />
+    <ProjectReference Include="..\Rxintel.Generic.Dtos\Rxintel.Generic.Dtos.csproj" />
+    <ProjectReference Include="..\Rxintel.Generic.Entities\Rxintel.Generic.Entities.csproj" />
+    <ProjectReference Include="..\Rxintel.Generic.Model\Rxintel.Generic.Models.csproj" />
+    <ProjectReference Include="..\Rxintel.Generic.Repositories\Rxintel.Generic.Repositories.csproj" />
+    <ProjectReference Include="..\Rxintel.Logger\Rxintel.Logger.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Services\ServiceBus\" />
+  </ItemGroup>
+
+</Project>

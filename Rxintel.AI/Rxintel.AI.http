@@ -1,0 +1,6 @@
+@Rxintel.AI_HostAddress = http://localhost:5080
+
+GET {{Rxintel.AI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

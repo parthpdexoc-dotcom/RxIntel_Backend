@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>9b1e2f3a-4c5d-6e7f-8a9b-0c1d2e3f4a5b</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.26">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.26" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.26" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.26">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.17" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Log4Net.AspNetCore" Version="8.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="8.1.4" />
+    <PackageReference Include="AutoMapper" Version="14.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rxintel.Generic.Api\Rxintel.Generic.Api.csproj" />
+    <ProjectReference Include="..\Rxintel.Generic.Common\Rxintel.Generic.Common.csproj" />
+    <ProjectReference Include="..\Rxintel.Generic.Dtos\Rxintel.Generic.Dtos.csproj" />
+    <ProjectReference Include="..\Rxintel.Generic.Model\Rxintel.Generic.Models.csproj" />
+    <ProjectReference Include="..\Rxintel.Generic.Entities\Rxintel.Generic.Entities.csproj" />
+    <ProjectReference Include="..\Rxintel.Generic.Repositories\Rxintel.Generic.Repositories.csproj" />
+    <ProjectReference Include="..\Rxintel.Generic.Services\Rxintel.Generic.Services.csproj" />
+    <ProjectReference Include="..\Rxintel.Logger\Rxintel.Logger.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="log4net.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
