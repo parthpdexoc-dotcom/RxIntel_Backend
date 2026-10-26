@@ -3,13 +3,14 @@
     Automated CI/CD Deployment Script for RxIntel Backend on Windows Server (IIS).
 .DESCRIPTION
     1. Validates repository and target branch.
-    2. Builds and publishes Rxintel.AI in Release mode.
-    3. Safely engages app_offline.htm in IIS to release file locks.
-    4. Syncs published binaries to live IIS directory WITHOUT overwriting:
+    2. Automatically creates a timestamped backup of the current live site folder.
+    3. Builds and publishes Rxintel.AI in Release mode.
+    4. Safely engages app_offline.htm in IIS to release file locks.
+    5. Syncs published binaries to live IIS directory WITHOUT overwriting:
        - appsettings.json
        - appsettings.Development.json (and any appsettings.*.json)
        - web.config
-    5. Cleans up app_offline.htm and optionally recycles IIS AppPool.
+    6. Cleans up app_offline.htm and recycles/restarts IIS AppPool / Windows Service 'Plexoc'.
 #>
 
 [CmdletBinding()]
@@ -18,10 +19,10 @@ param(
     [string]$TargetBranch = "Develop",
 
     [Parameter(Mandatory = $false)]
-    [string]$IisSitePath = "C:\inetpub\wwwroot\RxIntel_API",
+    [string]$IisSitePath = "C:\inetpub\wwwroot\RxIntelAPI",
 
     [Parameter(Mandatory = $false)]
-    [string]$AppPoolName = "RxIntel_API_Pool",
+    [string]$AppPoolName = "Plexoc",
 
     [Parameter(Mandatory = $false)]
     [string]$RepoDir = $PSScriptRoot + "\..",
@@ -36,7 +37,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 function Write-Step ([string]$msg) {
-    Write-Host "`n>>> [CI/CD] $msg" -ForegroundColor Cyan
+    Write-Host "`n>>> [CI/CD:Backend] $msg" -ForegroundColor Cyan
 }
 
 function Write-Success ([string]$msg) {
@@ -52,21 +53,50 @@ function Write-Failure ([string]$msg) {
 }
 
 try {
-    Write-Step "Starting RxIntel Backend Deployment for branch: '$TargetBranch'..."
-    Write-Host "Target IIS Path: $IisSitePath"
-    Write-Host "Repository Dir:  $RepoDir"
+    Write-Step "Starting RxIntel Backend Deployment..."
+    
+    # Auto-detect path if Plexoc subdirectory is used
+    if (-not (Test-Path $IisSitePath) -and (Test-Path "C:\inetpub\wwwroot\Plexoc\RxIntelAPI")) {
+        $IisSitePath = "C:\inetpub\wwwroot\Plexoc\RxIntelAPI"
+    }
+
+    Write-Host "Target IIS Path:  $IisSitePath"
+    Write-Host "Service/AppPool:  $AppPoolName"
+    Write-Host "Repository Dir:   $RepoDir"
 
     # 1. Verify Directories
     if (-not (Test-Path $RepoDir)) {
         throw "Repository directory '$RepoDir' not found."
     }
 
-    if (-not (Test-Path $IisSitePath)) {
-        Write-WarningMsg "IIS Site Path '$IisSitePath' does not exist. Creating directory..."
+    # =========================================================================
+    # STEP: AUTOMATIC PRE-DEPLOYMENT BACKUP
+    # =========================================================================
+    if (Test-Path $IisSitePath) {
+        $hasFiles = (Get-ChildItem -Path $IisSitePath | Measure-Object).Count -gt 0
+        if ($hasFiles) {
+            $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+            $parentDir = Split-Path $IisSitePath -Parent
+            $backupBase = Join-Path $parentDir "Backups"
+            if (-not (Test-Path $backupBase)) {
+                New-Item -ItemType Directory -Path $backupBase -Force | Out-Null
+            }
+            $targetFolderName = (Get-Item $IisSitePath).Name
+            $backupFolder = Join-Path $backupBase "${targetFolderName}_$timestamp"
+            
+            Write-Step "CREATING BACKUP: Copying live files to '$backupFolder' before deployment..."
+            New-Item -ItemType Directory -Path $backupFolder -Force | Out-Null
+            
+            # Fast recursive copy to backup folder
+            & robocopy.exe "$IisSitePath" "$backupFolder" /E /R:1 /W:1 /NP | Out-Null
+            Write-Success "Full backup created successfully at: '$backupFolder'"
+        }
+    } else {
+        Write-WarningMsg "Target directory '$IisSitePath' does not exist yet. Creating directory..."
         New-Item -ItemType Directory -Path $IisSitePath -Force | Out-Null
     }
 
-    # 2. Update Source from Git
+    # 2. Update Source from Git (optional, skipped if handled by GitHub Actions runner)
     if (-not $SkipGitPull) {
         Write-Step "Updating repository working tree to latest '$TargetBranch'..."
         Push-Location $RepoDir
@@ -116,16 +146,9 @@ try {
     Start-Sleep -Seconds 2
 
     # 6. Copy Published Artifacts with ROBOCOPY
-    # EXCLUDE appsettings.json, appsettings.*.json, and web.config from being overwritten
+    # STRICT EXCLUSION: appsettings.json, appsettings.*.json, and web.config are NEVER overwritten
     Write-Step "Syncing new binaries to IIS directory (protecting appsettings.json and web.config)..."
     
-    # Robocopy flags:
-    # /E   : Copy subdirectories, including empty ones.
-    # /XF  : Exclude files matching names (PROTECTED CONFIGS).
-    # /XD  : Exclude directories.
-    # /R:2 : Retry twice on locked file.
-    # /W:2 : Wait 2 seconds between retries.
-    # /NP  : No progress percentage in log.
     $excludeFiles = @("appsettings.json", "appsettings.Development.json", "appsettings.*.json", "web.config")
     
     $robocopyArgs = @(
@@ -141,7 +164,7 @@ try {
     & robocopy.exe @robocopyArgs | Out-Null
     $roboExit = $LASTEXITCODE
 
-    # Robocopy exit codes < 8 indicate success (0=no change, 1=copied, 2=extra, 3=copied+extra, etc.)
+    # Robocopy exit codes < 8 indicate success
     if ($roboExit -ge 8) {
         throw "Robocopy failed with exit code $roboExit."
     }
@@ -153,20 +176,36 @@ try {
         Remove-Item -Path $appOfflinePath -Force
     }
 
-    # 8. Recycle IIS AppPool if WebAdministration is present
+    # 8. Recycle IIS AppPool / Restart Service 'Plexoc'
     if (![string]::IsNullOrWhiteSpace($AppPoolName)) {
         try {
+            $recycled = $false
             if (Get-Module -ListAvailable -Name WebAdministration) {
                 Import-Module WebAdministration -ErrorAction SilentlyContinue
                 if (Test-Path "IIS:\AppPools\$AppPoolName") {
                     Write-Step "Recycling IIS Application Pool '$AppPoolName'..."
                     Restart-WebAppPool -Name $AppPoolName
                     Write-Success "AppPool '$AppPoolName' recycled."
+                    $recycled = $true
                 }
+            }
+            if (-not $recycled) {
+                $appCmd = "$env:SystemRoot\system32\inetsrv\appcmd.exe"
+                if (Test-Path $appCmd) {
+                    & $appCmd recycle apppool /apppool.name:"$AppPoolName" | Out-Null
+                    Write-Success "AppPool '$AppPoolName' recycled via appcmd."
+                    $recycled = $true
+                }
+            }
+            $winService = Get-Service -Name $AppPoolName -ErrorAction SilentlyContinue
+            if ($winService -and $winService.Status -eq "Running") {
+                Write-Step "Restarting Windows Service '$AppPoolName'..."
+                Restart-Service -Name $AppPoolName -Force
+                Write-Success "Windows Service '$AppPoolName' restarted."
             }
         }
         catch {
-            Write-WarningMsg "Could not automatically recycle AppPool '$AppPoolName': $_"
+            Write-WarningMsg "Notice on AppPool/Service recycle: $_"
         }
     }
 
@@ -177,14 +216,13 @@ try {
 
     Write-Success "=========================================================="
     Write-Success " RxIntel Backend Deployment Completed Successfully! "
-    Write-Success " Target Branch: $TargetBranch | IIS Path: $IisSitePath"
-    Write-Success " Protected: appsettings.json, appsettings.*.json, web.config"
+    Write-Success " Target: $IisSitePath | Service/AppPool: $AppPoolName"
+    Write-Success " Live configs preserved. Backup saved before release."
     Write-Success "=========================================================="
     exit 0
 }
 catch {
     Write-Failure "Deployment FAILED: $_"
-    # Ensure app_offline.htm is cleaned up even on failure
     $fallbackOffline = Join-Path $IisSitePath "app_offline.htm"
     if (Test-Path $fallbackOffline) {
         Remove-Item -Path $fallbackOffline -Force -ErrorAction SilentlyContinue
