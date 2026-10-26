@@ -44,7 +44,6 @@ namespace Rxintel.AI.Controllers
             {
                 pharmacyId = parsed;
             }
-            //New Comment
             _logger.LogInformation("[Audit:UploadBatch] Received batch upload request for file '{FileName}' ({Length} bytes), PharmacyId: {PharmacyId}.",
                 file?.FileName, file?.Length ?? 0, pharmacyId);
 
